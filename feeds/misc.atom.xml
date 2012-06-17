@@ -1,2 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Kamal Bin Mustafa</title><link href="/" rel="alternate"></link><link href="//feeds/misc.atom.xml" rel="self"></link><id>/</id><updated>2012-06-17T16:40:56+08:00</updated><entry><title>New blog</title><link href="//new-blog.html" rel="alternate"></link><updated>2012-06-17T16:40:56+08:00</updated><author><name>Kamal Bin Mustafa</name></author><id>//new-blog.html</id><summary type="html">&lt;p&gt;Just testing new blog using Pelican.&lt;/p&gt;</summary></entry></feed>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Kamal Bin Mustafa</title><link href="/" rel="alternate"></link><link href="//feeds/misc.atom.xml" rel="self"></link><id>/</id><updated>2012-06-18T07:20:42+08:00</updated><entry><title>Django admin: Hook into actions</title><link href="//django-admin-hook-into-actions.html" rel="alternate"></link><updated>2012-06-18T07:20:42+08:00</updated><author><name>Kamal Bin Mustafa</name></author><id>//django-admin-hook-into-actions.html</id><summary type="html">&lt;p&gt;I want to do something before actions was executed. For example when admin 
+deleting users using 'Delete selected' dropdown in admin panel, I want to run 
+some commands in backend system to remove info about that user in a config 
+file. If the commands somehow failed, I want to abort the operation so the user 
+can't be deleted. Signals won't work here since there's no way to abort the 
+request gracefully (other than raising exception and causing the 500 error page 
+displayed). Using transaction also wouldn't work since there might be more 
+users deleted in single actions and I only want the user that failed get 
+aborted, not the whole users selected.&lt;/p&gt;
+&lt;p&gt;Django allow us to define custom actions in admin, it quite simple but I don't 
+want to reimplement what &lt;code&gt;delete_selected&lt;/code&gt; already doing. The idea is just hook 
+before the action function get called and do my stuff. The first part is 
+overriding the actions:&lt;/p&gt;
+&lt;div class="codehilite"&gt;&lt;pre&gt;&lt;span class="k"&gt;class&lt;/span&gt; &lt;span class="nc"&gt;MyModelAdmin&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;admin&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;ModelAdmin&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="n"&gt;actions&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s"&gt;&amp;#39;delete_selected&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,]&lt;/span&gt;
+
+    &lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;delete_selected&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="bp"&gt;self&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;request&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;queryset&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+        &lt;span class="k"&gt;pass&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;This seem to work. When you define action name similar to what already defined 
+in &lt;code&gt;django.contrib.admin&lt;/code&gt;, yours will be used. (TODO: Check if order in 
+&lt;code&gt;INSTALLED_APPS&lt;/code&gt; matters). The next thing to do is to wrap your logic before 
+calling actual &lt;code&gt;delete_selected&lt;/code&gt; function. I have implemented my 
+&lt;code&gt;delete_selected&lt;/code&gt; as:-&lt;/p&gt;
+&lt;div class="codehilite"&gt;&lt;pre&gt;&lt;span class="kn"&gt;from&lt;/span&gt; &lt;span class="nn"&gt;django.contrib.admin.actions&lt;/span&gt; &lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="n"&gt;delete_selected&lt;/span&gt;
+
+&lt;span class="k"&gt;class&lt;/span&gt; &lt;span class="nc"&gt;MyModelAdmin&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;admin&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;ModelAdmin&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+    &lt;span class="n"&gt;actions&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="s"&gt;&amp;#39;delete_selected&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;,]&lt;/span&gt;
+
+    &lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;delete_selected&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="bp"&gt;self&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;request&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;queryset&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+        &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="ow"&gt;not&lt;/span&gt; &lt;span class="n"&gt;request&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;POST&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;#39;post&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+            &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;delete_selected&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="bp"&gt;self&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;request&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;queryset&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+        &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="n"&gt;request&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;POST&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;get&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;&amp;#39;post&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;):&lt;/span&gt;
+            &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="n"&gt;user&lt;/span&gt; &lt;span class="ow"&gt;in&lt;/span&gt; &lt;span class="n"&gt;queryset&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+                &lt;span class="n"&gt;status&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;backend&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;some_command&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;user&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+                &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="ow"&gt;not&lt;/span&gt; &lt;span class="n"&gt;status&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+                    &lt;span class="bp"&gt;self&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;message_user&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;request&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s"&gt;&amp;#39;Fail to update user&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+                    &lt;span class="k"&gt;break&lt;/span&gt;
+            &lt;span class="k"&gt;else&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;
+                &lt;span class="n"&gt;delete_selected&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="bp"&gt;self&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;request&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;queryset&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+    &lt;span class="n"&gt;delete_selected&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;short_description&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s"&gt;&amp;#39;Delete selected&amp;#39;&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;My code just iterate through the selected users and run backend command on 
+them, if the command success it will go through the next user. If the loop 
+terminate normally, the else clause will be executed, calling the real 
+&lt;code&gt;delete_selected&lt;/code&gt; function. If somehow the backend function failed, the loop 
+&lt;code&gt;break&lt;/code&gt; and the else clause will never been executed. Here I'd also finally 
+found some use case for &lt;a href="http://psung.blogspot.com/2007/12/for-else-in-python.html"&gt;python's &lt;code&gt;for ... else&lt;/code&gt;&lt;/a&gt; construct.&lt;/p&gt;
+&lt;p&gt;Initially I named my &lt;code&gt;delete_selected&lt;/code&gt; as &lt;code&gt;custom_delete_selected&lt;/code&gt; and then 
+remove the real &lt;code&gt;delete_selected&lt;/code&gt; by overriding ModelAdmin's &lt;code&gt;get_actions()&lt;/code&gt; 
+method but there's a problem with that. When user submit to delete the selected 
+users, a confirmation page is displayed. Only when admin submit the 
+confirmation page the function start deleting the user. To facilitate the 
+confirmation, it use form validition to make sure the action name 
+('delete_selected') exists in the POST data. If we use our 
+&lt;code&gt;custom_delete_selected&lt;/code&gt; as the action then 'delete_selected' not present in 
+the POST data and the validation fail, the function will not be executed.&lt;/p&gt;</summary><category term="django"></category><category term="python"></category></entry><entry><title>New blog</title><link href="//new-blog.html" rel="alternate"></link><updated>2012-06-17T16:40:56+08:00</updated><author><name>Kamal Bin Mustafa</name></author><id>//new-blog.html</id><summary type="html">&lt;p&gt;Just testing new blog using Pelican.&lt;/p&gt;</summary></entry></feed>
